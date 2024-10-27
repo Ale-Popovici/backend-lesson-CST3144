@@ -2,29 +2,36 @@
 const Order = require("../models/order.model");
 const Lesson = require("../models/lesson.model");
 
-// Get all orders
-exports.getOrders = async (req, res) => {
-  try {
-    const orders = await Order.find().populate("lessonIds");
-    res.status(200).json({
-      success: true,
-      count: orders.length,
-      data: orders,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: "Server Error",
-    });
-  }
-};
-
-// Create new order
+// POST /orders - Create new order
 exports.createOrder = async (req, res) => {
   try {
-    const { lessonIds, numberOfSpace } = req.body;
+    const { lessonIds, numberOfSpace, name, phoneNumber } = req.body;
 
-    // Verify lessons exist and have enough space
+    // Validate input
+    if (!name || !phoneNumber || !lessonIds || !numberOfSpace) {
+      return res.status(400).json({
+        success: false,
+        error: "Please provide all required fields",
+      });
+    }
+
+    // Validate name format (letters only)
+    if (!/^[A-Za-z\s]+$/.test(name)) {
+      return res.status(400).json({
+        success: false,
+        error: "Name must contain only letters",
+      });
+    }
+
+    // Validate phone number format (numbers only)
+    if (!/^\d+$/.test(phoneNumber)) {
+      return res.status(400).json({
+        success: false,
+        error: "Phone number must contain only numbers",
+      });
+    }
+
+    // Check if lessons exist and have enough space
     for (let lessonId of lessonIds) {
       const lesson = await Lesson.findById(lessonId);
       if (!lesson) {
@@ -41,14 +48,22 @@ exports.createOrder = async (req, res) => {
       }
     }
 
-    // Create order and update lesson spaces
-    const order = await Order.create(req.body);
+    // Create order
+    const order = await Order.create({
+      name,
+      phoneNumber,
+      lessonIds,
+      numberOfSpace,
+    });
 
-    // Update spaces for each lesson
+    // Update lesson spaces
     for (let lessonId of lessonIds) {
-      await Lesson.findByIdAndUpdate(lessonId, {
-        $inc: { space: -numberOfSpace },
-      });
+      const lesson = await Lesson.findById(lessonId);
+      await Lesson.findByIdAndUpdate(
+        lessonId,
+        { space: lesson.space - numberOfSpace },
+        { new: true }
+      );
     }
 
     res.status(201).json({
@@ -59,6 +74,22 @@ exports.createOrder = async (req, res) => {
     res.status(400).json({
       success: false,
       error: error.message,
+    });
+  }
+};
+
+// GET /orders - Get all orders
+exports.getOrders = async (req, res) => {
+  try {
+    const orders = await Order.find().populate("lessonIds");
+    res.status(200).json({
+      success: true,
+      data: orders,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Error fetching orders",
     });
   }
 };

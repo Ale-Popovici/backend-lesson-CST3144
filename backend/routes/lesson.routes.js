@@ -1,16 +1,12 @@
 // routes/lesson.routes.js
 const express = require("express");
 const router = express.Router();
-const {
-  getLessons,
-  createLesson,
-  searchLessons,
-  updateLessonSpace,
-} = require("../controllers/lesson.controller");
+const lessonController = require("../controllers/lesson.controller");
 
-router.route("/").get(getLessons).post(createLesson);
+// GET all lessons
+router.get("/", lessonController.getLessons);
 
-router.get("/search", searchLessons);
-router.patch("/:id/space", updateLessonSpace);
+// PUT update lesson
+router.put("/:id", lessonController.updateLesson);
 
 module.exports = router;
