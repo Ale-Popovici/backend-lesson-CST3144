@@ -2,86 +2,46 @@
 const Lesson = require("../models/lesson.model");
 
 // Get all lessons
-exports.getLessons = async (req, res) => {
+const getLessons = async (req, res) => {
   try {
-    const lessons = await Lesson.find();
-    res.status(200).json({
-      success: true,
-      count: lessons.length,
-      data: lessons,
-    });
+    const lessons = await Lesson.find(
+      {},
+      {
+        topic: 1,
+        location: 1,
+        price: 1,
+        space: 1,
+        _id: 1,
+      }
+    );
+
+    res.status(200).json(lessons);
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: "Server Error",
+      error: "Error fetching lessons",
     });
   }
 };
 
-// Create new lesson
-exports.createLesson = async (req, res) => {
+// Update lesson
+const updateLesson = async (req, res) => {
   try {
-    const lesson = await Lesson.create(req.body);
-    res.status(201).json({
-      success: true,
-      data: lesson,
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message,
-    });
-  }
-};
+    const { id } = req.params;
+    const updates = req.body;
 
-// Search lessons
-exports.searchLessons = async (req, res) => {
-  try {
-    const { q } = req.query;
-
-    if (!q) {
+    // Validate the updates
+    if (updates.space != null && updates.space < 0) {
       return res.status(400).json({
         success: false,
-        error: "Search query is required",
+        error: "Space cannot be negative",
       });
     }
 
-    const possiblePrice = parseFloat(q);
-
-    const searchConditions = {
-      $or: [
-        { $text: { $search: q } },
-        ...(possiblePrice
-          ? [{ price: possiblePrice }, { space: possiblePrice }]
-          : []),
-        { topic: { $regex: q, $options: "i" } },
-        { location: { $regex: q, $options: "i" } },
-      ],
-    };
-
-    const lessons = await Lesson.find(searchConditions);
-
-    res.status(200).json({
-      success: true,
-      count: lessons.length,
-      data: lessons,
+    const lesson = await Lesson.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true,
     });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: "Server Error",
-    });
-  }
-};
-
-// Update lesson space
-exports.updateLessonSpace = async (req, res) => {
-  try {
-    const lesson = await Lesson.findByIdAndUpdate(
-      req.params.id,
-      { space: req.body.space },
-      { new: true, runValidators: true }
-    );
 
     if (!lesson) {
       return res.status(404).json({
@@ -100,4 +60,9 @@ exports.updateLessonSpace = async (req, res) => {
       error: error.message,
     });
   }
+};
+
+module.exports = {
+  getLessons,
+  updateLesson,
 };
