@@ -15,11 +15,77 @@ const getLessons = async (req, res) => {
       }
     );
 
-    res.status(200).json(lessons);
+    // Transform lessons before sending
+    const transformedLessons = lessons.map((lesson) => ({
+      _id: lesson._id,
+      topic: lesson.topic,
+      location: lesson.location,
+      price: lesson.price,
+      space: lesson.space,
+    }));
+
+    res.status(200).json(transformedLessons);
   } catch (error) {
+    console.error("Error fetching lessons:", error);
     res.status(500).json({
       success: false,
       error: "Error fetching lessons",
+    });
+  }
+};
+
+// Search lessons
+const searchLessons = async (req, res) => {
+  try {
+    const { q } = req.query;
+    console.log("Received search query:", q);
+
+    if (!q) {
+      const allLessons = await Lesson.find({});
+      return res.status(200).json(allLessons);
+    }
+
+    // Create search query
+    const searchConditions = {
+      $or: [
+        { topic: { $regex: q, $options: "i" } },
+        { location: { $regex: q, $options: "i" } },
+      ],
+    };
+
+    // Add numeric search if the query is a number
+    if (!isNaN(q)) {
+      const numericValue = Number(q);
+      searchConditions.$or.push(
+        { price: numericValue },
+        { space: numericValue }
+      );
+    }
+
+    console.log(
+      "Search conditions:",
+      JSON.stringify(searchConditions, null, 2)
+    );
+
+    const lessons = await Lesson.find(searchConditions);
+
+    // Transform lessons before sending
+    const transformedLessons = lessons.map((lesson) => ({
+      _id: lesson._id,
+      topic: lesson.topic,
+      location: lesson.location,
+      price: lesson.price,
+      space: lesson.space,
+    }));
+
+    console.log(`Found ${transformedLessons.length} matching lessons`);
+
+    res.status(200).json(transformedLessons);
+  } catch (error) {
+    console.error("Search error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error searching lessons",
     });
   }
 };
@@ -50,11 +116,21 @@ const updateLesson = async (req, res) => {
       });
     }
 
+    // Transform lesson before sending response
+    const transformedLesson = {
+      _id: lesson._id,
+      topic: lesson.topic,
+      location: lesson.location,
+      price: lesson.price,
+      space: lesson.space,
+    };
+
     res.status(200).json({
       success: true,
-      data: lesson,
+      data: transformedLesson,
     });
   } catch (error) {
+    console.error("Update error:", error);
     res.status(400).json({
       success: false,
       error: error.message,
@@ -65,4 +141,5 @@ const updateLesson = async (req, res) => {
 module.exports = {
   getLessons,
   updateLesson,
+  searchLessons,
 };
