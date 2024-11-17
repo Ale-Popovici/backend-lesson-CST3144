@@ -17,9 +17,29 @@ const app = express();
 // Connect to MongoDB
 connectDB();
 
+// CORS configuration with your GitHub Pages URL
+app.use(
+  cors({
+    origin: [
+      "http://localhost:8080",
+      "https://ale-popovici.github.io",
+      "https://ale-popovici.github.io/CST3145/",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+    ],
+    credentials: true,
+    maxAge: 86400, // 24 hours
+  })
+);
+
 // Middleware
-app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Logger middleware
 app.use(logger);
@@ -30,6 +50,11 @@ app.use("/public", express.static(path.join(__dirname, "public")));
 // Custom static file middleware for more control
 app.use(staticFileMiddleware);
 
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "OK", message: "Server is running" });
+});
+
 // Mount routes
 app.use("/api/lessons", lessonRoutes);
 app.use("/api/orders", orderRoutes);
@@ -38,20 +63,47 @@ app.use("/api/orders", orderRoutes);
 const publicImagesPath = path.join(__dirname, "public", "images");
 require("fs").mkdirSync(publicImagesPath, { recursive: true });
 
-// Error handling middleware
+// Generic error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({
+
+  // Log specific error details
+  console.error({
+    message: err.message,
+    path: req.path,
+    method: req.method,
+    body: req.body,
+    timestamp: new Date().toISOString(),
+  });
+
+  res.status(err.status || 500).json({
     success: false,
-    error: "Something went wrong!",
+    error:
+      process.env.NODE_ENV === "production"
+        ? "Something went wrong!"
+        : err.message,
+  });
+});
+
+// Handle 404 errors
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: "Route not found",
   });
 });
 
 // Start server
 const PORT = process.env.PORT || 5001;
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Public directory: ${path.join(__dirname, "public")}`);
+  console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log("Allowed origins:", [
+    "http://localhost:8080",
+    "https://ale-popovici.github.io",
+    "https://ale-popovici.github.io/CST3145/",
+  ]);
 });
 
 // Handle unhandled promise rejections
@@ -59,4 +111,19 @@ process.on("unhandledRejection", (err) => {
   console.log(`Error: ${err.message}`);
   // Close server & exit process
   server.close(() => process.exit(1));
+});
+
+// Handle uncaught exceptions
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  server.close(() => process.exit(1));
+});
+
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received. Shutting down gracefully...");
+  server.close(() => {
+    console.log("Process terminated.");
+    process.exit(0);
+  });
 });
