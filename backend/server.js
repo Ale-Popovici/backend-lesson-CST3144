@@ -25,7 +25,8 @@ app.use(
       "https://ale-popovici.github.io",
       "https://ale-popovici.github.io/Frontend-CST3144",
       "https://ale-popovici.github.io/Frontend-CST3144/",
-      "http://localhost:5001",
+      "http://3.253.62.183:5001",
+      "http://ec2-3-253-62-183.eu-west-1.compute.amazonaws.com:5001",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: [
@@ -55,6 +56,10 @@ app.use((req, res, next) => {
   res.header("X-Content-Type-Options", "nosniff");
   res.header("X-Frame-Options", "DENY");
   res.header("X-XSS-Protection", "1; mode=block");
+  // Handle preflight
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
   next();
 });
 
@@ -73,6 +78,8 @@ app.get("/health", (req, res) => {
     status: "OK",
     message: "Server is running",
     timestamp: new Date().toISOString(),
+    mongodb:
+      mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
   });
 });
 
@@ -130,8 +137,10 @@ Allowed Origins:
 - https://ale-popovici.github.io
 - https://ale-popovici.github.io/Frontend-CST3144
 - https://ale-popovici.github.io/Frontend-CST3144/
-- http://localhost:5001
+- http://3.253.62.183:5001
+- http://ec2-3-253-62-183.eu-west-1.compute.amazonaws.com:5001
 
+MongoDB URI: ${process.env.MONGODB_URI ? "Set" : "Not Set"}
 Server is ready to accept connections!
   `);
 });
