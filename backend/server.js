@@ -2,10 +2,9 @@ require("dotenv").config({ path: "./config/.env" });
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const connectDB = require("./config/db.config");
+const { connectDB, getDB } = require("./config/db.config");
 const logger = require("./middleware/logger");
 const staticFileMiddleware = require("./middleware/static");
-const mongoose = require("mongoose");
 
 // Import routes
 const lessonRoutes = require("./routes/lesson.routes");
@@ -15,7 +14,15 @@ const orderRoutes = require("./routes/order.routes");
 const app = express();
 
 // Connect to MongoDB
-connectDB();
+let db;
+(async () => {
+  try {
+    db = await connectDB();
+  } catch (error) {
+    console.error("Failed to connect to MongoDB:", error);
+    process.exit(1);
+  }
+})();
 
 // CORS configuration
 app.use(
@@ -66,19 +73,37 @@ app.use("/public", express.static(path.join(__dirname, "public")));
 app.use(staticFileMiddleware);
 
 // Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    status: "OK",
-    message: "Server is running",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    mongodb: {
-      status:
-        mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
-      host: mongoose.connection.host,
-    },
-  });
+app.get("/health", async (req, res) => {
+  try {
+    const db = getDB();
+    const adminDb = db.admin();
+    const serverStatus = await adminDb.serverStatus();
+
+    res.status(200).json({
+      success: true,
+      status: "OK",
+      message: "Server is running",
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      mongodb: {
+        status: serverStatus.ok === 1 ? "Connected" : "Disconnected",
+        host: serverStatus.host,
+        version: serverStatus.version,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      status: "ERROR",
+      message: "Error checking server health",
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      mongodb: {
+        status: "Disconnected",
+        error: error.message,
+      },
+    });
+  }
 });
 
 // API Routes
@@ -144,7 +169,7 @@ process.on("unhandledRejection", (err) => {
 });
 
 process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:");
+  console.error("Uncaught Exception:", err);
   server.close(() => process.exit(1));
 });
 

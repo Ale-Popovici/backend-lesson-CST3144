@@ -1,39 +1,33 @@
 // controllers/order.controller.js
-const Order = require("../models/order.model");
-const Lesson = require("../models/lesson.model");
+const { ObjectId } = require("mongodb");
+const { getDB } = require("../config/db.config");
+const { validateOrder } = require("../models/validators");
 
-// POST /orders - Create new order
 exports.createOrder = async (req, res) => {
   try {
-    const { lessonIds, numberOfSpace, name, phoneNumber } = req.body;
+    const { name, phoneNumber, lessonIds, numberOfSpace } = req.body;
+    const db = getDB();
 
     // Validate input
-    if (!name || !phoneNumber || !lessonIds || !numberOfSpace) {
+    const errors = validateOrder({
+      name,
+      phoneNumber,
+      lessonIds,
+      numberOfSpace,
+    });
+    if (errors.length > 0) {
       return res.status(400).json({
         success: false,
-        error: "Please provide all required fields",
+        errors,
       });
     }
 
-    // Validate name format (letters only)
-    if (!/^[A-Za-z\s]+$/.test(name)) {
-      return res.status(400).json({
-        success: false,
-        error: "Name must contain only letters",
-      });
-    }
-
-    // Validate phone number format (numbers only)
-    if (!/^\d+$/.test(phoneNumber)) {
-      return res.status(400).json({
-        success: false,
-        error: "Phone number must contain only numbers",
-      });
-    }
+    // Convert string IDs to ObjectId
+    const objectIds = lessonIds.map((id) => new ObjectId(id));
 
     // Check if lessons exist and have enough space
-    for (let lessonId of lessonIds) {
-      const lesson = await Lesson.findById(lessonId);
+    for (let lessonId of objectIds) {
+      const lesson = await db.collection("lessons").findOne({ _id: lessonId });
       if (!lesson) {
         return res.status(404).json({
           success: false,
@@ -49,26 +43,27 @@ exports.createOrder = async (req, res) => {
     }
 
     // Create order
-    const order = await Order.create({
+    const order = {
       name,
       phoneNumber,
-      lessonIds,
+      lessonIds: objectIds,
       numberOfSpace,
-    });
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const result = await db.collection("orders").insertOne(order);
 
     // Update lesson spaces
-    for (let lessonId of lessonIds) {
-      const lesson = await Lesson.findById(lessonId);
-      await Lesson.findByIdAndUpdate(
-        lessonId,
-        { space: lesson.space - numberOfSpace },
-        { new: true }
-      );
+    for (let lessonId of objectIds) {
+      await db
+        .collection("lessons")
+        .updateOne({ _id: lessonId }, { $inc: { space: -numberOfSpace } });
     }
 
     res.status(201).json({
       success: true,
-      data: order,
+      data: { ...order, _id: result.insertedId },
     });
   } catch (error) {
     res.status(400).json({
@@ -78,10 +73,23 @@ exports.createOrder = async (req, res) => {
   }
 };
 
-// GET /orders - Get all orders
 exports.getOrders = async (req, res) => {
   try {
-    const orders = await Order.find().populate("lessonIds");
+    const db = getDB();
+    const orders = await db
+      .collection("orders")
+      .aggregate([
+        {
+          $lookup: {
+            from: "lessons",
+            localField: "lessonIds",
+            foreignField: "_id",
+            as: "lessons",
+          },
+        },
+      ])
+      .toArray();
+
     res.status(200).json({
       success: true,
       data: orders,

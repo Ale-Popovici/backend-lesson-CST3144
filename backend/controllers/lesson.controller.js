@@ -1,21 +1,17 @@
 // controllers/lesson.controller.js
-const Lesson = require("../models/lesson.model");
+const { ObjectId } = require("mongodb");
+const { getDB } = require("../config/db.config");
+const { validateLesson } = require("../models/validators");
 
-// Get all lessons
 const getLessons = async (req, res) => {
   try {
-    const lessons = await Lesson.find(
-      {},
-      {
-        topic: 1,
-        location: 1,
-        price: 1,
-        space: 1,
-        _id: 1,
-      }
-    );
+    const db = getDB();
+    const lessons = await db
+      .collection("lessons")
+      .find({})
+      .project({ topic: 1, location: 1, price: 1, space: 1 })
+      .toArray();
 
-    // Transform lessons before sending
     const transformedLessons = lessons.map((lesson) => ({
       _id: lesson._id,
       topic: lesson.topic,
@@ -34,18 +30,16 @@ const getLessons = async (req, res) => {
   }
 };
 
-// Search lessons
 const searchLessons = async (req, res) => {
   try {
     const { q } = req.query;
-    console.log("Received search query:", q);
+    const db = getDB();
 
     if (!q) {
-      const allLessons = await Lesson.find({});
+      const allLessons = await db.collection("lessons").find({}).toArray();
       return res.status(200).json(allLessons);
     }
 
-    // Create search query
     const searchConditions = {
       $or: [
         { topic: { $regex: q, $options: "i" } },
@@ -53,7 +47,6 @@ const searchLessons = async (req, res) => {
       ],
     };
 
-    // Add numeric search if the query is a number
     if (!isNaN(q)) {
       const numericValue = Number(q);
       searchConditions.$or.push(
@@ -62,14 +55,11 @@ const searchLessons = async (req, res) => {
       );
     }
 
-    console.log(
-      "Search conditions:",
-      JSON.stringify(searchConditions, null, 2)
-    );
+    const lessons = await db
+      .collection("lessons")
+      .find(searchConditions)
+      .toArray();
 
-    const lessons = await Lesson.find(searchConditions);
-
-    // Transform lessons before sending
     const transformedLessons = lessons.map((lesson) => ({
       _id: lesson._id,
       topic: lesson.topic,
@@ -77,8 +67,6 @@ const searchLessons = async (req, res) => {
       price: lesson.price,
       space: lesson.space,
     }));
-
-    console.log(`Found ${transformedLessons.length} matching lessons`);
 
     res.status(200).json(transformedLessons);
   } catch (error) {
@@ -90,13 +78,12 @@ const searchLessons = async (req, res) => {
   }
 };
 
-// Update lesson
 const updateLesson = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
+    const db = getDB();
 
-    // Validate the updates
     if (updates.space != null && updates.space < 0) {
       return res.status(400).json({
         success: false,
@@ -104,25 +91,27 @@ const updateLesson = async (req, res) => {
       });
     }
 
-    const lesson = await Lesson.findByIdAndUpdate(id, updates, {
-      new: true,
-      runValidators: true,
-    });
+    const lesson = await db
+      .collection("lessons")
+      .findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        { $set: updates },
+        { returnDocument: "after" }
+      );
 
-    if (!lesson) {
+    if (!lesson.value) {
       return res.status(404).json({
         success: false,
         error: "Lesson not found",
       });
     }
 
-    // Transform lesson before sending response
     const transformedLesson = {
-      _id: lesson._id,
-      topic: lesson.topic,
-      location: lesson.location,
-      price: lesson.price,
-      space: lesson.space,
+      _id: lesson.value._id,
+      topic: lesson.value.topic,
+      location: lesson.value.location,
+      price: lesson.value.price,
+      space: lesson.value.space,
     };
 
     res.status(200).json({

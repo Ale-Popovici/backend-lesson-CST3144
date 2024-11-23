@@ -1,8 +1,7 @@
 // scripts/seedLessons.js
+const { MongoClient } = require("mongodb");
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "../config/.env") });
-const mongoose = require("mongoose");
-const Lesson = require("../models/lesson.model");
 
 const lessons = [
   {
@@ -78,39 +77,43 @@ const lessons = [
 ];
 
 const seedDatabase = async () => {
+  let client;
   try {
-    // Log the MongoDB URI (without sensitive information)
     console.log("Attempting to connect to MongoDB...");
 
     if (!process.env.MONGODB_URI) {
       throw new Error("MONGODB_URI is not defined in environment variables");
     }
 
-    await mongoose.connect(process.env.MONGODB_URI);
+    client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
     console.log("Connected to MongoDB");
 
+    const db = client.db();
+
     // Clear existing lessons
-    await Lesson.deleteMany({});
+    await db.collection("lessons").deleteMany({});
     console.log("Cleared existing lessons");
 
-    // Transform lessons to match schema
-    const transformedLessons = lessons.map((lesson) => ({
-      customId: lesson.id,
-      topic: lesson.subject,
-      location: lesson.location,
-      price: lesson.price,
-      space: lesson.spaces,
-    }));
-
-    // Insert transformed lessons
-    await Lesson.insertMany(transformedLessons);
+    // Insert lessons
+    await db.collection("lessons").insertMany(lessons);
     console.log("Added sample lessons");
 
+    // Create indexes
+    await db
+      .collection("lessons")
+      .createIndex({ topic: "text", location: "text" });
+    console.log("Created text indexes");
+
     console.log("Seed completed successfully");
-    process.exit(0);
   } catch (error) {
     console.error("Error seeding database:", error);
     process.exit(1);
+  } finally {
+    if (client) {
+      await client.close();
+    }
+    process.exit(0);
   }
 };
 
