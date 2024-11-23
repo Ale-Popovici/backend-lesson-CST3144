@@ -75,6 +75,7 @@ const searchLessons = async (req, res) => {
   }
 };
 
+// In controllers/lesson.controller.js
 const updateLesson = async (req, res) => {
   try {
     const { id } = req.params;
@@ -95,6 +96,19 @@ const updateLesson = async (req, res) => {
       });
     }
 
+    // First find the lesson
+    const lesson = await db
+      .collection("lessons")
+      .findOne({ _id: new ObjectId(id) });
+
+    if (!lesson) {
+      return res.status(404).json({
+        success: false,
+        error: "Lesson not found",
+      });
+    }
+
+    // Then update it
     const result = await db
       .collection("lessons")
       .findOneAndUpdate(
@@ -103,19 +117,19 @@ const updateLesson = async (req, res) => {
         { returnDocument: "after" }
       );
 
-    if (!result.value) {
-      return res.status(404).json({
+    if (!result) {
+      return res.status(500).json({
         success: false,
-        error: "Lesson not found",
+        error: "Update failed",
       });
     }
 
     const transformedLesson = {
-      _id: result.value._id,
-      topic: result.value.topic,
-      location: result.value.location,
-      price: result.value.price,
-      space: result.value.space,
+      _id: result._id,
+      topic: result.topic,
+      location: result.location,
+      price: result.price,
+      space: result.space,
     };
 
     res.status(200).json({
