@@ -1,13 +1,13 @@
-// config/db.config.js
 const { MongoClient } = require("mongodb");
 
 let db = null;
+let client = null;
 
 const connectDB = async () => {
   try {
-    const client = new MongoClient(process.env.MONGODB_URI);
+    client = new MongoClient(process.env.MONGODB_URI);
     await client.connect();
-    db = client.db(); // Uses the database specified in the URI
+    db = client.db("lessons"); // Specify database name explicitly
     console.log(`MongoDB Connected: ${client.options.srvHost}`);
     return db;
   } catch (error) {
@@ -23,4 +23,12 @@ const getDB = () => {
   return db;
 };
 
-module.exports = { connectDB, getDB };
+const closeDB = async () => {
+  if (client) {
+    await client.close();
+    db = null;
+    client = null;
+  }
+};
+
+module.exports = { connectDB, getDB, closeDB };

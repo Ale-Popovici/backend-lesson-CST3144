@@ -1,78 +1,67 @@
-// scripts/seedLessons.js
 const { MongoClient } = require("mongodb");
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "../config/.env") });
 
 const lessons = [
   {
-    id: 1,
-    subject: "Mathematics",
+    topic: "Mathematics",
     location: "H101",
     price: 50,
-    spaces: 5,
+    space: 5,
   },
   {
-    id: 2,
-    subject: "Physics",
+    topic: "Physics",
     location: "A203",
     price: 60,
-    spaces: 5,
+    space: 5,
   },
   {
-    id: 3,
-    subject: "Chemistry",
+    topic: "Chemistry",
     location: "C205",
     price: 55,
-    spaces: 5,
+    space: 5,
   },
   {
-    id: 4,
-    subject: "Biology",
+    topic: "Biology",
     location: "B301",
     price: 45,
-    spaces: 5,
+    space: 5,
   },
   {
-    id: 5,
-    subject: "Computer Science",
+    topic: "Computer Science",
     location: "F405",
     price: 65,
-    spaces: 5,
+    space: 5,
   },
   {
-    id: 6,
-    subject: "English Literature",
+    topic: "English Literature",
     location: "A102",
     price: 40,
-    spaces: 5,
+    space: 5,
   },
   {
-    id: 7,
-    subject: "History",
+    topic: "History",
     location: "D204",
     price: 45,
-    spaces: 5,
+    space: 5,
   },
   {
-    id: 8,
-    subject: "Geography",
+    topic: "Geography",
     location: "A303",
     price: 50,
-    spaces: 5,
+    space: 5,
   },
   {
-    id: 9,
-    subject: "Art",
+    topic: "Art",
     location: "C401",
     price: 55,
-    spaces: 5,
+    space: 5,
   },
   {
-    id: 10,
-    subject: "Music",
+    topic: "Music",
     location: "F100",
     price: 60,
-    spaces: 5,
+    space: 5,
   },
 ];
 
@@ -89,11 +78,23 @@ const seedDatabase = async () => {
     await client.connect();
     console.log("Connected to MongoDB");
 
-    const db = client.db();
+    const db = client.db("lessons"); // Specify database name
 
-    // Clear existing lessons
-    await db.collection("lessons").deleteMany({});
-    console.log("Cleared existing lessons");
+    // Drop existing collections
+    await db
+      .collection("lessons")
+      .drop()
+      .catch(() => console.log("No lessons collection to drop"));
+    await db
+      .collection("orders")
+      .drop()
+      .catch(() => console.log("No orders collection to drop"));
+    console.log("Cleared existing collections");
+
+    // Create collections
+    await db.createCollection("lessons");
+    await db.createCollection("orders");
+    console.log("Created collections");
 
     // Insert lessons
     await db.collection("lessons").insertMany(lessons);
